@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wikipedia Time Machine</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { border-bottom: 2px solid #333; padding-bottom: .4rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th { text-align: left; border-bottom: 1px solid #aaa; padding: .4rem .6rem; background: #f4f4f4; }
+    td { padding: .35rem .6rem; border-bottom: 1px solid #e0e0e0; }
+    tr:hover td { background: #fafafa; }
+    a { color: #0645ad; }
+    .note { color: #555; font-size: .9rem; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Wikipedia Time Machine</h1>
+  <p>Pick an article and a moment in time to read it as it was then.<br>
+     All times are <strong>UTC</strong>. The database holds every Wikipedia
+     revision saved before 2026-11-01.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Article</th>
+        <th>Versions</th>
+        <th>Oldest version</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for a in articles %}
+      <tr>
+        <td><a href="{{ url_for('article', page_id=a.page_id) }}">{{ a.title }}</a></td>
+        <td>{{ a.versions }}</td>
+        <td>{{ a.first_saved.strftime('%Y-%m-%d %H:%M') }} UTC</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="note">
+    Powered by MariaDB system-versioned tables (<code>FOR SYSTEM_TIME</code>).
+    Source: <a href="https://github.com/AdnanSN/wikipedia-time-machine">GitHub</a>.
+  </p>
+</body>
+</html>
