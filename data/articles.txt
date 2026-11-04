@@ -1,0 +1,45 @@
+# The stated set of articles: English Wikipedia titles, one per line.
+# scripts/fetch_revisions.py downloads every revision of each one saved before the
+# cutoff (2026-11-01 00:00:00 UTC), so the data set does not change when Wikipedia does.
+# Lines starting with # are comments. Change this list only in a pull request, and
+# update data/pages.tsv and the README in the same pull request.
+
+# MariaDB, its relatives and its storage engines
+MariaDB
+Michael Widenius
+InnoDB
+MyISAM
+Aria (storage engine)
+Percona Server for MySQL
+Drizzle (database server)
+LAMP (software bundle)
+
+# Time and history in databases: the ideas this project is about
+Temporal database
+SQL:2011
+Valid time
+Transaction time
+Bitemporal modeling
+Slowly changing dimension
+Change data capture
+Multiversion concurrency control
+Snapshot isolation
+Point-in-time recovery
+Write-ahead logging
+Audit trail
+
+# Transactions
+ACID
+Database transaction
+Isolation (database systems)
+Two-phase commit protocol
+
+# Relational foundations
+Edgar F. Codd
+Database index
+Stored procedure
+Database trigger
+View (SQL)
+
+# Our university, renamed twice since its article was started in 2002
+Constructor University
