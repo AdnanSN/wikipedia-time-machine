@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  load-and-check:
+    name: MariaDB ${{ matrix.mariadb }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # 10.11: first release with system_versioning_insert_history
+        # 11.4:  long-term support
+        # 12.3:  the version we develop on
+        mariadb: ['10.11', '11.4', '12.3']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the revision files against data/pages.tsv and their SHA-1s
+        run: python3 scripts/fetch_revisions.py --check
+
+      - name: Generate the SQL for the revision table
+        run: python3 scripts/build_sql.py
+
+      # A throwaway server inside the job: no port is published, so an empty root password is fine.
+      # The repository is mounted read-only at /repo so the client can `source` the scripts.
+      - name: Start MariaDB ${{ matrix.mariadb }}
+        run: |
+          docker run --detach --name mariadb \
+            --env MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 \
+            --volume "$GITHUB_WORKSPACE:/repo:ro" \
+            mariadb:${{ matrix.mariadb }} --max-allowed-packet=64M
+          for i in $(seq 1 60); do
+            if docker exec mariadb healthcheck.sh --connect --innodb_initialized; then
+              docker exec mariadb mariadb --user=root --execute="SELECT VERSION()"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs mariadb
+          exit 1
+
+      # Without --abort-source-on-error the client carries on after an error inside a sourced
+      # file and still exits 0. With it, the first SQL error or failed check fails the step.
+      - name: Build the database and run every demo and check (run_all.sql)
+        run: |
+          docker exec --workdir /repo mariadb \
+            sh -c 'mariadb --user=root --table --abort-source-on-error < run_all.sql' | tee run_all.out
+          grep -E '^\| [0-9]+ / [0-9]+ checks passed' run_all.out
+
+      - name: Keep the output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-mariadb-${{ matrix.mariadb }}
+          path: '*.out'
