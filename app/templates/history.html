@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }} – revision history – Wikipedia Time Machine</title>
+    <style>
+        body {
+            font-family: Georgia, serif;
+            max-width: 960px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            color: #222;
+        }
+
+        h1 {
+            border-bottom: 2px solid #333;
+            padding-bottom: .4rem;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: .9rem;
+        }
+
+        th {
+            text-align: left;
+            border-bottom: 1px solid #aaa;
+            padding: .4rem .6rem;
+            background: #f4f4f4;
+        }
+
+        td {
+            padding: .3rem .6rem;
+            border-bottom: 1px solid #e8e8e8;
+            vertical-align: top;
+        }
+
+        tr:hover td {
+            background: #fafafa;
+        }
+
+        .minor {
+            color: #777;
+            font-style: italic;
+        }
+
+        a {
+            color: #0645ad;
+        }
+
+        nav {
+            margin-bottom: 1rem;
+            font-size: .9rem;
+        }
+
+        .note {
+            color: #777;
+            font-size: .85rem;
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <a href="{{ url_for('index') }}">← All articles</a> |
+        <a href="{{ url_for('article', page_id=page_id) }}">Read current version</a>
+    </nav>
+
+    <h1>Revision history: {{ title }}</h1>
+    <p>{{ versions | length }} version(s) loaded. All times are <strong>UTC</strong>.</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Saved at (UTC)</th>
+                <th>Revision id</th>
+                <th>Editor</th>
+                <th>Summary</th>
+                <th>Bytes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {# FOR SYSTEM_TIME ALL returns one row per Wikipedia revision we imported.
+            row_start is when that version became current in our database. #}
+            {% for v in versions %}
+            <tr>
+                <td>
+                    {# Link to the article as it looked at this exact moment #}
+                    <a href="{{ url_for('article', page_id=page_id) }}?at={{ v.row_start.strftime('%Y-%m-%dT%H:%M') }}">
+                        {{ v.row_start.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </a>
+                </td>
+                <td>
+                    <a href="https://en.wikipedia.org/w/index.php?oldid={{ v.rev_id }}" target="_blank"
+                        rel="noopener">{{ v.rev_id }}</a>
+                </td>
+                <td>{{ v.editor or '(hidden)' }}</td>
+                <td>
+                    {% if v.minor_edit %}<span class="minor">m</span> {% endif %}
+                    {{ v.summary or '' }}
+                </td>
+                <td>{{ v.len or '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p class="note">
+        Query: <code>SELECT … FROM article FOR SYSTEM_TIME ALL WHERE page_id = {{ page_id }} ORDER BY row_start</code>
+    </p>
+</body>
+
+</html>

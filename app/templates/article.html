@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ row.title }} – Wikipedia Time Machine</title>
+    <style>
+        body {
+            font-family: Georgia, serif;
+            max-width: 860px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            color: #222;
+        }
+
+        h1 {
+            border-bottom: 2px solid #333;
+            padding-bottom: .4rem;
+        }
+
+        .meta {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: .7rem 1rem;
+            margin-bottom: 1.2rem;
+            font-size: .9rem;
+        }
+
+        .meta dt {
+            font-weight: bold;
+            float: left;
+            width: 130px;
+        }
+
+        .meta dd {
+            margin-left: 135px;
+        }
+
+        .controls {
+            display: flex;
+            gap: .5rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1.2rem;
+        }
+
+        .controls input[type=datetime-local] {
+            padding: .3rem .5rem;
+            font-size: 1rem;
+        }
+
+        .controls button {
+            padding: .3rem .8rem;
+            font-size: .9rem;
+            cursor: pointer;
+        }
+
+        a {
+            color: #0645ad;
+        }
+
+        .note {
+            color: #777;
+            font-size: .85rem;
+            border-top: 1px solid #ddd;
+            margin-top: 2rem;
+            padding-top: .5rem;
+        }
+
+        nav {
+            margin-bottom: 1rem;
+            font-size: .9rem;
+        }
+
+        /* Rendered article content */
+        .wikitext h2 {
+            font-size: 1.3rem;
+            border-bottom: 1px solid #aaa;
+            margin-top: 1.5rem;
+        }
+
+        .wikitext h3 {
+            font-size: 1.1rem;
+            margin-top: 1.2rem;
+        }
+
+        .wikitext h4 {
+            font-size: 1rem;
+            margin-top: 1rem;
+        }
+
+        .wikitext li {
+            margin: .2rem 0;
+        }
+
+        .wikitext p {
+            margin: .6rem 0;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <a href="{{ url_for('index') }}">← All articles</a> |
+        <a href="{{ url_for('history', page_id=page_id) }}">Revision timeline</a>
+    </nav>
+
+    <h1>{{ row.title }}</h1>
+
+    {# Time picker: submits a GET to the same URL with ?at=... #}
+    <form method="get" class="controls">
+        <label for="at-input">View as of:</label>
+        <input id="at-input" type="datetime-local" name="at" value="{{ at_str }}">
+        <button type="submit">Go</button>
+        {% if prev_at %}
+        <a href="{{ url_for('article', page_id=page_id) }}?at={{ prev_at }}">
+            <button type="button">← Previous edit</button>
+        </a>
+        {% else %}
+        <button type="button" disabled>← Previous edit</button>
+        {% endif %}
+        {% if next_at %}
+        <a href="{{ url_for('article', page_id=page_id) }}?at={{ next_at }}">
+            <button type="button">Next edit →</button>
+        </a>
+        {% else %}
+        <button type="button" disabled>Next edit →</button>
+        {% endif %}
+    </form>
+
+    {# Revision metadata block #}
+    <div class="meta">
+        <dl>
+            <dt>Revision</dt>
+            <dd>
+                <a href="https://en.wikipedia.org/w/index.php?oldid={{ row.rev_id }}" target="_blank" rel="noopener">{{
+                    row.rev_id }}</a>
+                (view on Wikipedia)
+            </dd>
+            <dt>Saved at</dt>
+            <dd>{{ row.row_start.strftime('%Y-%m-%d %H:%M:%S') }} UTC</dd>
+            <dt>Editor</dt>
+            <dd>{{ row.editor or '(hidden)' }}</dd>
+            <dt>Summary</dt>
+            <dd>{{ row.summary or '(none)' }}</dd>
+            {% if row.minor_edit %}
+            <dt>Minor edit</dt>
+            <dd>yes</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    {# Rendered article text #}
+    {% if row.content %}
+    <div class="wikitext">{{ rendered_html | safe }}</div>
+    {% else %}
+    <p><em>(Text hidden by Wikipedia.)</em></p>
+    {% endif %}
+
+    <p class="note">
+        ⚠️ This rendering handles headings, bold, italic, links, and lists.
+        Templates, tables, references, and images are not rendered.
+        Times are UTC.
+    </p>
+</body>
+
+</html>

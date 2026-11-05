@@ -11,3 +11,4 @@ The team guide asks for every use of an AI tool to be traceable: which tool, whi
 | Date | Who | Tool | What it touched | Prompt | Result |
 |------|-----|------|-----------------|--------|--------|
 | 2026-11-04 | Adnan S | Claude Code (Claude Opus 5.5) | Milestone M1: the data set and its download script, the schema and history load, the demo queries and checks, CI, README, AGENTS.md, CONTRIBUTING.md and the planning docs | [prompt](prompts/2026-11-04-adnan-m1-foundation.md) | Branch `adnan/m1-foundation`, pull request #1 |
+| 2026-11-05 | Siddhartha | Antigravity (Google DeepMind) | Milestone M2: `app/app.py`, `app/renderer.py`, `app/requirements.txt`, `app/README.md`, `app/templates/` (index, article, history), `app/tests/test_renderer.py` | [prompt](prompts/2026-11-05-siddhartha-m2-time-machine-page.md) | Branch `siddhartha/time-machine-page`, pull request #2 |
