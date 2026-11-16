@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - Lab - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<p class="crumb"><a href="{{ url_for('lab.pages') }}">Lab</a></p>
+<h1>{{ title }}</h1>
+
+{% with messages = get_flashed_messages() %}{% for message in messages %}
+<div class="done">
+  <p>{{ message.what }} This is everything the application sent ({{ '%.1f' | format(message.ms) }} ms):</p>
+  <pre><code>{{ message.sql }}</code></pre>
+</div>
+{% endfor %}{% endwith %}
+
+<div class="reading">
+  <div class="text">
+    {% if at and shown %}
+    <p class="notice">You are reading the text as it stood on {{ at | in_words(seconds=True) }}.
+       <a href="{{ url_for('lab.page', page_id=page_id) }}">Back to the current text.</a></p>
+    <pre class="wikitext">{{ shown.content }}</pre>
+    {% if exists_now %}
+    <form method="post" action="{{ url_for('lab.restore', page_id=page_id) }}" class="inline-form">
+      <input type="hidden" name="form_token" value="{{ form_token }}">
+      <input type="hidden" name="moment" value="{{ at | for_url }}">
+      <label for="restorer">Your name</label>
+      <input id="restorer" name="editor" type="text" maxlength="60" placeholder="a visitor">
+      <button type="submit">Restore this text</button>
+    </form>
+    {% endif %}
+
+    {% elif at %}
+    <p class="notice">There was no such page on {{ at | in_words(seconds=True) }}.
+       <a href="{{ url_for('lab.page', page_id=page_id) }}">Back to now.</a></p>
+
+    {% elif shown %}
+    <form method="post" action="{{ url_for('lab.save', page_id=page_id) }}" class="edit">
+      <input type="hidden" name="form_token" value="{{ form_token }}">
+      <label for="content">The text</label>
+      <textarea id="content" name="content" rows="16" maxlength="{{ text_limit }}" required>{{ shown.content }}</textarea>
+      <div class="edit-row">
+        <div><label for="editor">Your name</label>
+             <input id="editor" name="editor" type="text" maxlength="60" placeholder="a visitor"></div>
+        <div class="grow"><label for="summary">What you changed</label>
+             <input id="summary" name="summary" type="text" maxlength="200" placeholder="edited in the lab"></div>
+        <button type="submit">Save the edit</button>
+      </div>
+      <p class="small">Saving without changing anything still adds a version. MariaDB records every
+         <code>UPDATE</code> that names a versioned column, whether or not the value differs.</p>
+    </form>
+    <form method="post" action="{{ url_for('lab.delete', page_id=page_id) }}" class="inline-form danger">
+      <input type="hidden" name="form_token" value="{{ form_token }}">
+      <button type="submit">Delete this page</button>
+      <span class="small">You can bring it back afterwards.</span>
+    </form>
+
+    {% else %}
+    <p class="notice">This page has been deleted. The table has no row for it, yet every version is
+       still in the list beside this text.</p>
+    <form method="post" action="{{ url_for('lab.undelete', page_id=page_id) }}" class="inline-form">
+      <input type="hidden" name="form_token" value="{{ form_token }}">
+      <label for="undeleter">Your name</label>
+      <input id="undeleter" name="editor" type="text" maxlength="60" placeholder="a visitor">
+      <button type="submit">Bring the page back</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <aside class="facts" aria-label="Versions of this page">
+    <h2>What the server kept</h2>
+    <p class="small">{{ versions | length }} version{{ '' if versions | length == 1 else 's' }},
+       newest first, from <code>FOR SYSTEM_TIME ALL</code>.</p>
+    <ol class="kept">
+      {% for v in versions %}
+      <li>
+        <a href="{{ url_for('lab.page', page_id=page_id, at=v.row_start | for_url) }}">{{ v.row_start | in_words(seconds=True) }}</a>
+        <span class="small">{{ v.editor }}: {{ v.summary or 'no summary' }}.
+          {{ '{:,}'.format(v.characters) }} characters.
+          {% if v.is_current %}Current.{% else %}Stood for {{ span_in_words(v.row_start, v.row_end) }}.{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </aside>
+</div>
+{% endblock %}

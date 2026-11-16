@@ -4,8 +4,10 @@
 
 ## How I tested it
 
-- [ ] `python scripts/build_sql.py` and `mariadb -u root -p --table --abort-source-on-error -e "source run_all.sql"` end with `N / N checks passed`
-- [ ] Anything else I ran (app, measurement script) and what it showed:
+- [ ] `python scripts/setup.py` (or `python scripts/build_sql.py` and `mariadb -u root -p --table --abort-source-on-error -e "source run_all.sql"`) ends with `N / N checks passed`
+- [ ] If I touched `app/`: `pytest app/tests` passes, and I opened the pages I changed
+- [ ] If I touched an experiment: it ends with `N / N ... checks passed`, and the numbers in the docs come from its output
+- [ ] Anything else I ran and what it showed:
 
 ## AI use
 

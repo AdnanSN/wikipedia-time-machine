@@ -1,48 +1,94 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wikipedia Time Machine</title>
-  <style>
-    body { font-family: Georgia, serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #222; }
-    h1 { border-bottom: 2px solid #333; padding-bottom: .4rem; }
-    table { border-collapse: collapse; width: 100%; }
-    th { text-align: left; border-bottom: 1px solid #aaa; padding: .4rem .6rem; background: #f4f4f4; }
-    td { padding: .35rem .6rem; border-bottom: 1px solid #e0e0e0; }
-    tr:hover td { background: #fafafa; }
-    a { color: #0645ad; }
-    .note { color: #555; font-size: .9rem; margin-top: 2rem; }
-  </style>
-</head>
-<body>
-  <h1>Wikipedia Time Machine</h1>
-  <p>Pick an article and a moment in time to read it as it was then.<br>
-     All times are <strong>UTC</strong>. The database holds every Wikipedia
-     revision saved before 2026-11-01.</p>
+{% extends "base.html" %}
 
-  <table>
-    <thead>
-      <tr>
-        <th>Article</th>
-        <th>Versions</th>
-        <th>Oldest version</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for a in articles %}
-      <tr>
-        <td><a href="{{ url_for('article', page_id=a.page_id) }}">{{ a.title }}</a></td>
-        <td>{{ a.versions }}</td>
-        <td>{{ a.first_saved.strftime('%Y-%m-%d %H:%M') }} UTC</td>
-      </tr>
+{% block band %}
+<section class="moment">
+  <div class="moment-inner">
+    {% if at %}
+    <p class="moment-lead">{{ articles | length }} of {{ articles_ever }} Wikipedia articles existed. This is how they stood on</p>
+    <h1 class="moment-date">{{ at | in_words }}</h1>
+    {% else %}
+    <p class="moment-lead">{{ articles_ever }} Wikipedia articles and every one of their {{ '{:,}'.format(versions_ever) }} versions since {{ first_year }}.</p>
+    <h1 class="moment-date">Pick a moment. Read what Wikipedia said.</h1>
+    {% endif %}
+
+    {# Edits per year. Each bar is a link to 1 January of that year. #}
+    <div class="years-chart" role="group" aria-label="Edits per year; choose a year to travel to it">
+      {% for bar in bars %}
+      <a class="year-bar{{ ' here' if bar.year == year_now }}"
+         href="{{ url_for('index', at='%d-01-01T00:00:00' | format(bar.year)) }}"
+         title="{{ bar.year }}: {{ '{:,}'.format(bar.edits) }} edits. Go to 1 January {{ bar.year }}.">
+        <span class="year-fill" style="--share: {{ bar.height }}"></span>
+        <span class="year-name">{{ bar.year if bar.year % 2 == 0 else '' }}</span>
+      </a>
+      {% endfor %}
+    </div>
+
+    <form class="travel" method="get" action="{{ url_for('index') }}">
+      <label for="at">Take every article to</label>
+      <input id="at" name="at" type="datetime-local" step="1" value="{{ at_input }}"
+             min="2001-01-15T00:00:00" required>
+      <span class="unit">UTC</span>
+      <button type="submit">Travel</button>
+      {% if at %}<a class="quiet-button" href="{{ url_for('index') }}">Back to now</a>{% endif %}
+    </form>
+  </div>
+</section>
+{% endblock %}
+
+{% block main %}
+<div class="statement">
+  <p>{% if at %}One statement moved this page's connection into the past. The query that lists
+     the articles is the same one that lists them today:{% else %}The list below is an ordinary
+     query. Travel to a moment and it stays the same; one <code>SET</code> in front of it changes
+     what it returns:{% endif %}</p>
+  <pre><code>{% if at %}SET system_versioning_asof = '{{ at | for_statement }}';
+{% endif %}SELECT page_id, title, rev_id, editor, len, row_start AS saved_at
+FROM article
+ORDER BY title;</code></pre>
+</div>
+
+<table class="list">
+  <caption>{% if at %}Articles as they stood then{% else %}Articles as they stand now{% endif %}</caption>
+  <thead>
+    <tr>
+      <th scope="col">Article</th>
+      <th scope="col" class="num">Size</th>
+      <th scope="col">{% if at %}Last saved before then{% else %}Last saved{% endif %}</th>
+      <th scope="col">By</th>
+      <th scope="col" class="num">Versions{% if at %} so far{% endif %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in articles %}
+    <tr>
+      <th scope="row"><a href="{{ url_for('article', page_id=row.page_id, at=at_url) }}">{{ row.title }}</a></th>
+      <td class="num">{{ '{:,}'.format(row.len or 0) }} bytes</td>
+      <td>{{ row.saved_at | day }}</td>
+      <td>{{ row.editor or 'name hidden' }}</td>
+      <td class="num"><a href="{{ url_for('history', page_id=row.page_id) }}">{{ '{:,}'.format(row.versions_so_far or 0) }}</a></td>
+    </tr>
     {% endfor %}
-    </tbody>
-  </table>
+  </tbody>
+  <tfoot>
+    <tr>
+      <th scope="row">{{ articles | length }} article{{ '' if articles | length == 1 else 's' }}</th>
+      <td class="num">{{ '{:,}'.format(total_bytes) }} bytes</td>
+      <td colspan="3"></td>
+    </tr>
+  </tfoot>
+</table>
 
-  <p class="note">
-    Powered by MariaDB system-versioned tables (<code>FOR SYSTEM_TIME</code>).
-    Source: <a href="https://github.com/AdnanSN/wikipedia-time-machine">GitHub</a>.
-  </p>
-</body>
-</html>
+{% if not_yet %}
+<section class="not-yet">
+  <h2>Not written yet at that moment</h2>
+  <p>These {{ not_yet | length }} articles have no row as of {{ at | in_words }}: the query above
+     simply does not return them. Follow one to its first version.</p>
+  <ul>
+    {% for row in not_yet %}
+    <li><a href="{{ url_for('article', page_id=row.page_id, at=row.first_saved | for_url) }}">{{ row.title }}</a>,
+        started {{ row.first_saved | day }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{# The picture of an article's life (see timeline.py). The reader clicks or drags on it
+   to pick a moment; timeline.js turns the position into ?at=... . Without JavaScript
+   the picture still shows, and the date field and the edit buttons below do the work. #}
+<div class="strata" data-start="{{ picture.start_ms }}" data-end="{{ picture.end_ms }}"
+     data-go="{{ url_for('article', page_id=page_id) }}"
+     role="slider" tabindex="0"
+     aria-label="The article's size over time. Click a moment to read the article as it stood then. Left and right arrow keys step one edit."
+     aria-valuemin="{{ picture.start_ms }}" aria-valuemax="{{ picture.end_ms }}"
+     aria-valuetext="{{ version.row_start | in_words }}">
+  <svg viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    {% for x, label in picture.years %}
+    <line class="year-line{{ ' labelled' if label }}" x1="{{ x }}" x2="{{ x }}" y1="0" y2="120"/>
+    {% endfor %}
+    <path class="layers" d="{{ picture.path }}"/>
+  </svg>
+  <div class="needle" style="left: {{ picture.needle / 10 }}%"><span class="needle-label"></span></div>
+  <div class="year-names" aria-hidden="true">
+    {% for x, label in picture.years %}{% if label %}
+    <span style="left: {{ x / 10 }}%">{{ label }}</span>
+    {% endif %}{% endfor %}
+  </div>
+</div>
+<p class="strata-key">Height is the article's size, up to {{ '{:,}'.format(picture.largest) }} bytes.
+   A thin vertical cut is text that was removed and put back.</p>

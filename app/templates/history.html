@@ -1,117 +1,54 @@
-<!doctype html>
-<html lang="en">
+{% extends "base.html" %}
+{% block title %}Versions of {{ title }} - Wikipedia time machine{% endblock %}
 
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ title }} – revision history – Wikipedia Time Machine</title>
-    <style>
-        body {
-            font-family: Georgia, serif;
-            max-width: 960px;
-            margin: 2rem auto;
-            padding: 0 1rem;
-            color: #222;
-        }
+{% block main %}
+<p class="crumb"><a href="{{ url_for('article', page_id=page_id) }}">{{ title }}</a></p>
+<h1>Every version of {{ title }}</h1>
+<p class="lead">{{ '{:,}'.format(total) }} versions, newest first. Each row is one row of the table's
+   history: a version started when it was saved (<code>row_start</code>) and ended when the next
+   one replaced it (<code>row_end</code>). Nothing but the server wrote those two columns.</p>
 
-        h1 {
-            border-bottom: 2px solid #333;
-            padding-bottom: .4rem;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            font-size: .9rem;
-        }
-
-        th {
-            text-align: left;
-            border-bottom: 1px solid #aaa;
-            padding: .4rem .6rem;
-            background: #f4f4f4;
-        }
-
-        td {
-            padding: .3rem .6rem;
-            border-bottom: 1px solid #e8e8e8;
-            vertical-align: top;
-        }
-
-        tr:hover td {
-            background: #fafafa;
-        }
-
-        .minor {
-            color: #777;
-            font-style: italic;
-        }
-
-        a {
-            color: #0645ad;
-        }
-
-        nav {
-            margin-bottom: 1rem;
-            font-size: .9rem;
-        }
-
-        .note {
-            color: #777;
-            font-size: .85rem;
-            margin-top: 1.5rem;
-        }
-    </style>
-</head>
-
-<body>
-    <nav>
-        <a href="{{ url_for('index') }}">← All articles</a> |
-        <a href="{{ url_for('article', page_id=page_id) }}">Read current version</a>
+<form method="get" action="{{ url_for('diff', page_id=page_id) }}">
+  <div class="table-actions">
+    <button type="submit">Compare the two chosen versions</button>
+    {% if pages > 1 %}
+    <nav class="paging" aria-label="Pages of versions">
+      {% if page_number > 1 %}<a href="{{ url_for('history', page_id=page_id, page=page_number - 1) }}">&#9664; Newer</a>{% endif %}
+      <span>Page {{ page_number }} of {{ pages }}</span>
+      {% if page_number < pages %}<a href="{{ url_for('history', page_id=page_id, page=page_number + 1) }}">Older &#9654;</a>{% endif %}
     </nav>
+    {% endif %}
+  </div>
 
-    <h1>Revision history: {{ title }}</h1>
-    <p>{{ versions | length }} version(s) loaded. All times are <strong>UTC</strong>.</p>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Saved at (UTC)</th>
-                <th>Revision id</th>
-                <th>Editor</th>
-                <th>Summary</th>
-                <th>Bytes</th>
-            </tr>
-        </thead>
-        <tbody>
-            {# FOR SYSTEM_TIME ALL returns one row per Wikipedia revision we imported.
-            row_start is when that version became current in our database. #}
-            {% for v in versions %}
-            <tr>
-                <td>
-                    {# Link to the article as it looked at this exact moment #}
-                    <a href="{{ url_for('article', page_id=page_id) }}?at={{ v.row_start.strftime('%Y-%m-%dT%H:%M') }}">
-                        {{ v.row_start.strftime('%Y-%m-%d %H:%M:%S') }}
-                    </a>
-                </td>
-                <td>
-                    <a href="https://en.wikipedia.org/w/index.php?oldid={{ v.rev_id }}" target="_blank"
-                        rel="noopener">{{ v.rev_id }}</a>
-                </td>
-                <td>{{ v.editor or '(hidden)' }}</td>
-                <td>
-                    {% if v.minor_edit %}<span class="minor">m</span> {% endif %}
-                    {{ v.summary or '' }}
-                </td>
-                <td>{{ v.len or '' }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <p class="note">
-        Query: <code>SELECT … FROM article FOR SYSTEM_TIME ALL WHERE page_id = {{ page_id }} ORDER BY row_start</code>
-    </p>
-</body>
-
-</html>
+  <table class="list versions">
+    <thead>
+      <tr>
+        <th scope="col"><abbr title="Compare from this version">From</abbr></th>
+        <th scope="col"><abbr title="Compare to this version">To</abbr></th>
+        <th scope="col">Saved (UTC)</th>
+        <th scope="col">By</th>
+        <th scope="col" class="num">Size</th>
+        <th scope="col" class="num">Change</th>
+        <th scope="col">Stood for</th>
+        <th scope="col">Edit summary</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in versions %}
+      <tr{% if v.reverted %} class="reverted"{% endif %}>
+        <td><input type="radio" name="from" value="{{ v.row_start | for_url }}" aria-label="Compare from the version of {{ v.row_start | in_words }}"{{ ' checked' if loop.index == 2 or (loop.length == 1) }}></td>
+        <td><input type="radio" name="to" value="{{ v.row_start | for_url }}" aria-label="Compare to the version of {{ v.row_start | in_words }}"{{ ' checked' if loop.index == 1 }}></td>
+        <td class="when"><a href="{{ url_for('article', page_id=page_id, at=v.row_start | for_url) }}">{{ v.row_start.strftime('%Y-%m-%d %H:%M:%S') }}</a></td>
+        <td>{{ v.editor or 'name hidden' }}</td>
+        <td class="num">{{ '{:,}'.format(v.len or 0) }}</td>
+        <td class="num {% if v.bytes_changed is none %}{% elif v.bytes_changed > 0 %}grew{% elif v.bytes_changed < 0 %}shrank{% endif %}">
+          {%- if v.bytes_changed is none %}first{% else %}{{ '{:+,}'.format(v.bytes_changed) }}{% endif -%}
+        </td>
+        <td>{% if v.is_current %}current{% else %}{{ span_in_words(v.row_start, v.row_end) }}{% endif %}</td>
+        <td class="summary">{% if v.minor_edit %}<abbr title="Minor edit">m</abbr> {% endif %}{{ v.summary or '' }}{% if v.reverted %} <span class="tag">reverted</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% endblock %}

@@ -17,14 +17,22 @@ The person you work for must be able to explain every line you write at the fina
 | `scripts/fetch_revisions.py` | Downloads the history from the MediaWiki API (do not run it without a reason) | Adnan |
 | `scripts/build_sql.py` | Turns the data into `build/load_revisions.sql` (generated, gitignored) | Adnan |
 | `scripts/run_sql.py` | Runs a SQL script with the settings from `.env`, without a password prompt | Adnan |
+| `scripts/setup.py` | One command: build, load, check; `--app`, `--experiments` | Adnan |
+| `scripts/backup_check.py`, `experiments/backup/` | Dump with and without `--dump-history`, restore, compare | Adnan |
+| `scripts/check_output.py` | For CI: every script reached its end with all its checks passed | Adnan |
 | `sql/01_schema.sql` | Tables `page` and `revision` (how MediaWiki does it) and `article` (`WITH SYSTEM VERSIONING`) | Adnan |
 | `sql/02_build_history.sql` | Fills `article`'s history with the real save times | Adnan |
 | `sql/03_time_machine.sql` | Demo queries with `FOR SYSTEM_TIME` | Adnan |
+| `sql/04_lab.sql` | The `lab_page` table: history made by the server, step by step | Adnan |
 | `sql/90_checks.sql` | Self-checks; fails the run if one fails | Adnan |
 | `run_all.sql` | Runs all of the above in order | Adnan |
-| `app/` | The time machine web page (milestone M2) | Siddhartha |
+| `app/` | The time machine web page and its tests (milestones M2, M6) | Siddhartha |
+| `experiments/harness.sql` | The stopwatch and check helpers every experiment sources | Adnan |
 | `experiments/growth/`, `docs/growth-and-partitioning.md` | Growth and partitioning (M3) | Rahmath |
-| `experiments/before-after/`, `docs/before-and-after.md` | Without system versioning (M5) | Rahmath |
+| `experiments/time-models/`, `docs/decisions/0001-time-model.md` | The four time models, measured (M4) | Adnan |
+| `experiments/before-after/`, `docs/before-and-after.md` | Without system versioning, and its limits (M5) | Rahmath, Adnan |
+| `experiments/*/results-*.txt` | The recorded output the docs quote; rerun the script to change them | the experiment's owner |
+| `upstream/` | Findings for MariaDB: a bug reproduction, the audit of MariaDB's agent skill | Adnan |
 | `docs/decisions/` | Design decisions, one file each | whoever decides, reviewed by the team |
 | `docs/AI_USE.md`, `docs/prompts/`, `docs/self-assessment/` | Process records | everyone, own entries |
 
@@ -41,7 +49,7 @@ python scripts/run_sql.py
 
 `run_sql.py` runs `run_all.sql` (or the script you name, e.g. `python scripts/run_sql.py experiments/growth/run.sql`, or `--query "SELECT ..."`) with the connection settings from `.env`. If `.env` is missing or has no password, the client asks for one, which you cannot answer: ask the user to copy `.env.example` to `.env` and fill in their local password. Never ask them to paste a password into the chat, and never print `.env`.
 
-The output must end with `N / N checks passed`. Run it before every push that touches `data/`, `scripts/` or `sql/`. The same build without the helper is:
+The output must end with `N / N checks passed`. Run it before every push that touches `data/`, `scripts/` or `sql/`. `python scripts/setup.py` does both steps in one; `pytest app/tests` tests the web page (its page tests need the built database); each experiment is `python scripts/run_sql.py experiments/<name>/run.sql` and ends with its own checks. The same build without the helper is:
 
 ```bash
 mariadb -u root -p --table --abort-source-on-error -e "source run_all.sql"
@@ -79,3 +87,9 @@ On Windows, `mariadb` may not be on the PATH; the client is in `C:\Program Files
 - MariaDB's `REGEXP_SUBSTR` takes exactly two arguments; there is no position or occurrence argument.
 - Partitioning by `SYSTEM_TIME` is not possible with transaction-precise (`BIGINT UNSIGNED`) history.
 - `mariadb-dump` skips history unless given `--dump-history` (10.11 and later).
+- An `INSERT` never creates `SYSTEM_TIME` history partitions, even when it writes history. Declare them before loading dated history (`... AUTO PARTITIONS n`); otherwise `FOR SYSTEM_TIME AS OF` returns nothing after the first `UPDATE` (see `docs/growth-and-partitioning.md`).
+- `FOR SYSTEM_TIME AS OF t ... WHERE page_id = ...` reads every version saved after `t`. Add `ORDER BY row_end LIMIT 1` when you fetch one row.
+- `system_versioning_asof` applies to `SELECT` statements only, not to `SET @v = (SELECT ...)` or `CREATE TABLE ... AS SELECT`.
+- `then` is a reserved word: it cannot be a table alias.
+- `information_schema.TABLES.TABLE_ROWS` is an estimate, often far off for this table. Count rows with `FOR SYSTEM_TIME ALL`.
+- Every number in the README and `docs/` comes from a `results-*.txt` file written by a script. Rerun the script and copy the new numbers; never edit a number by hand.

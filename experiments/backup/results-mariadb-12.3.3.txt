@@ -1,0 +1,25 @@
+Dumping article and lab_page with --dump-history ...
+Dumping them again the default way ...
+  with history: 167.4 MB, default: 0.5 MB
+Restoring both into databases of their own ...
+Comparing with the original ...
++------------------------------+------------------+------------------+----------------------------+
+| database_is                  | current_articles | article_versions | oldest_version_starts      |
++------------------------------+------------------+------------------+----------------------------+
+| the original                 |               30 |            13354 | 2002-02-25 15:51:15.000000 |
+| restored from --dump-history |               30 |            13354 | 2002-02-25 15:51:15.000000 |
+| restored from a default dump |               30 |               30 | 2026-11-13 16:03:31.107597 |
++------------------------------+------------------+------------------+----------------------------+
++------------------------------------------------------------------------------------------+------+
+| test                                                                                     | pass |
++------------------------------------------------------------------------------------------+------+
+| a --dump-history backup restores every version of every article, dates and text included |    1 |
+| the restored table answers AS OF like the original (the MariaDB article on 1 June 2010)  |    1 |
+| the lab table, whose period columns are hidden, comes back with its history too          |    1 |
+| a default dump brings back the current rows only, stamped with the time of the restore   |    1 |
++------------------------------------------------------------------------------------------+------+
++----------------------------+
+| summary                    |
++----------------------------+
+| 4 / 4 backup checks passed |
++----------------------------+
