@@ -2,9 +2,7 @@
 
 **Tool:** Claude Code desktop app, model Claude Opus 5.5.
 
-**Prompt (summary of the request; the full session transcript is kept by Adnan):**
-
-> We are starting work on the main dish we selected earlier: system-versioned tables (area 3, the Wikipedia time machine). There are three of us, and my two teammates, Siddhartha and Rahmath, have not yet worked with coding agents or with this kind of collaboration on GitHub. Give me something I can send them so they can use their agents and get started, and start the work yourself: get about 25% of the main dish done now.
+**The request, in summary** (the full session transcript is kept by Adnan): start the main dish, area 3; write onboarding material so that the two teammates can start working with their own coding agents; and build the first quarter of the project.
 
 **Context the agent used:** the earlier session in which the team chose area 3, the area description and evaluation prompt on the [MariaDB project page](https://mariadb.org/bachelor_hackathon_2026-09/), the team guide (process rules, AI-use rules, dates), and the MariaDB documentation on [system-versioned tables](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/system-versioned-tables).
 
