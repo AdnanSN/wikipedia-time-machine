@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Search the past - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<h1>Search the past</h1>
+<p class="lead">Which articles said something {% if at %}on {{ at | in_words }}{% else %}now{% endif %},
+   and when did each of them first say it?</p>
+
+<form class="ask wide" method="get" action="{{ url_for('search') }}">
+  <label for="q">A word or phrase</label>
+  <input id="q" name="q" type="text" minlength="2" maxlength="200" value="{{ wanted }}" required>
+  <label for="at">as of</label>
+  <input id="at" name="at" type="datetime-local" step="1" value="{{ at_input }}">
+  <span class="unit">UTC, or leave empty for now</span>
+  <button type="submit">Search</button>
+</form>
+
+{% if wanted | length >= 2 %}
+<div class="columns">
+  <section>
+    <h2>{% if at %}Said it on {{ at | day }}{% else %}Say it now{% endif %}</h2>
+    {% if saying_it %}
+    <ul class="plain">
+      {% for row in saying_it %}
+      <li><a href="{{ url_for('article', page_id=row.page_id, at=at_url) }}">{{ row.title }}</a>
+          <span class="small">in the version saved {{ row.saved_at | day }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="notice">No article contained &ldquo;{{ wanted }}&rdquo; {% if at %}at that moment{% else %}now{% endif %}.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>First said it</h2>
+    {% if first_said %}
+    <ol class="plain">
+      {% for row in first_said %}
+      <li><a href="{{ url_for('article', page_id=row.page_id, at=row.first_said | for_url) }}">{{ row.title }}</a>
+          <span class="small">on {{ row.first_said | day }};
+          {{ '{:,}'.format(row.versions_saying_it) }} version{{ '' if row.versions_saying_it == 1 else 's' }} say it
+          (<a href="{{ url_for('phrase', page_id=row.page_id, q=wanted) }}">when exactly</a>)</span></li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="notice">No version of any article has ever contained it.</p>
+    {% endif %}
+  </section>
+</div>
+<p class="small">This reads every version of every article with <code>LIKE</code>. A full-text index would
+   be faster, but in MariaDB it only finds words in current rows
+   (<a href="https://jira.mariadb.org/browse/MDEV-36991">MDEV-36991</a>), so it cannot search the past.</p>
+{% endif %}
+{% endblock %}

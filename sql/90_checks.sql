@@ -118,6 +118,38 @@ SELECT 'two saves in the same second become two versions, 1 microsecond apart',
        COALESCE(@same_second_ok, FALSE)
    AND NOT EXISTS (SELECT 1 FROM page WHERE page_id = 4000000000);
 
+-- The session-wide time machine: under system_versioning_asof a SELECT that names no
+-- time returns the rows FOR SYSTEM_TIME AS OF returns. (SELECT ... INTO, because the
+-- setting covers SELECT statements only; a subquery inside SET would read the present.)
+SET system_versioning_asof = '2010-06-01 00:00:00';
+SELECT COUNT(*), SUM(rev_id) INTO @asof_rows, @asof_sum FROM article;
+SET system_versioning_asof = DEFAULT;
+
+INSERT INTO check_result (test, pass)
+SELECT 'SET system_versioning_asof shows a plain SELECT the rows FOR SYSTEM_TIME AS OF returns',
+       @asof_rows = (SELECT COUNT(*) FROM article FOR SYSTEM_TIME AS OF TIMESTAMP '2010-06-01 00:00:00')
+   AND @asof_sum = (SELECT SUM(rev_id) FROM article FOR SYSTEM_TIME AS OF TIMESTAMP '2010-06-01 00:00:00')
+   AND @asof_rows < (SELECT COUNT(*) FROM article);
+
+-- The lab (sql/04_lab.sql): history the server made by itself, with the clock set by
+-- hand so that the result is the same on every run.
+INSERT INTO check_result (test, pass)
+SELECT 'in the lab, seven statements left six versions, one of them from an UPDATE that changed nothing',
+       (SELECT COUNT(*) FROM lab_page FOR SYSTEM_TIME ALL WHERE page_id = 1) = 6
+   AND (SELECT COUNT(*) FROM lab_page FOR SYSTEM_TIME ALL WHERE page_id = 1 AND summary = 'said how') = 2;
+
+INSERT INTO check_result (test, pass)
+SELECT 'restoring from AS OF brought the text back, and the vandalism stays on record',
+       (SELECT content FROM lab_page WHERE page_id = 1)
+         = 'MariaDB keeps the history of this page. Nobody wrote code for that.'
+   AND (SELECT content FROM lab_page FOR SYSTEM_TIME AS OF TIMESTAMP '2026-11-01 12:03:30' WHERE page_id = 1)
+         = 'MARIADB IS A KIND OF SEAL';
+
+INSERT INTO check_result (test, pass)
+SELECT 'a deleted page has no row as of the minute it was gone, and its history brought it back',
+       NOT EXISTS (SELECT 1 FROM lab_page FOR SYSTEM_TIME AS OF TIMESTAMP '2026-11-01 12:05:30' WHERE page_id = 1)
+   AND EXISTS (SELECT 1 FROM lab_page WHERE page_id = 1);
+
 SELECT test, pass FROM check_result ORDER BY id;
 SELECT CONCAT(SUM(pass), ' / ', COUNT(*), ' checks passed') AS summary FROM check_result;
 

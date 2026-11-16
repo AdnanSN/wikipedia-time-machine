@@ -4,6 +4,8 @@
     python scripts/run_sql.py                         runs run_all.sql
     python scripts/run_sql.py sql/03_time_machine.sql runs one script
     python scripts/run_sql.py --query "SELECT 1"      runs one statement
+    python scripts/run_sql.py experiments/growth/run.sql --set runs=3
+                                                      runs an experiment with 3 timed runs
 
 Connection settings come from environment variables, or from a .env file in the
 repository root (copy .env.example; .env is gitignored, so the password stays on your
@@ -21,6 +23,7 @@ Uses only the Python standard library (3.9 or newer).
 import argparse
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -76,7 +79,14 @@ def main():
     parser.add_argument("script", nargs="?", default="run_all.sql",
                         help="SQL file to run, relative to the repository root")
     parser.add_argument("--query", help="run this SQL instead of a file")
+    parser.add_argument("--set", action="append", default=[], metavar="NAME=NUMBER",
+                        help="set a user variable before the script starts, e.g. --set runs=1 "
+                             "for the experiments (they read @runs and @keep)")
     args = parser.parse_args()
+    for assignment in args.set:
+        # Only a name and a whole number, so that nothing else can reach the server here.
+        if not re.fullmatch(r"[a-z_]+=[0-9]+", assignment):
+            sys.exit(f"--set takes NAME=NUMBER, for example runs=1; got: {assignment}")
 
     config, password_configured = settings()
     command = [find_client()]
@@ -98,6 +108,8 @@ def main():
         print("WTM_DB_PASSWORD is not set in .env or the environment, so the client will "
               "ask for the password.", file=sys.stderr)
         command.append("--password")
+    if args.set:
+        command.append("--init-command=SET " + ", ".join("@" + a.replace("=", " = ") for a in args.set))
     if args.query:
         command += ["--execute", args.query]
     else:

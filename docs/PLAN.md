@@ -22,14 +22,26 @@ On top of these, the four general criteria (documentation, MariaDB depth, execut
 | # | Milestone | Share | Owner | Due | Status |
 |---|-----------|-------|-------|-----|--------|
 | M1 | Foundation: data set, schema, history load with real dates, `FOR SYSTEM_TIME` demos, checks, CI | 25% | Adnan | 4 Nov | done |
-| M2 | The time machine page: pick an article and a moment, read it as it stood; revision timeline | 20% | Siddhartha | 17 Nov | not started |
-| M3 | Growth, and partitioning by `SYSTEM_TIME`: measured | 20% | Rahmath | 17 Nov | not started |
-| M4 | The time model compared: replay, `insert_history` and bitemporal, measured | 15% | Adnan | 20 Nov | not started |
-| M5 | Before and after: history by triggers and revision tables (the MySQL, PostgreSQL and MediaWiki way), and where system versioning stops being the right answer | 10% | Rahmath (triggers baseline), Adnan (limits) | 24 Nov | not started |
-| M6 | Diff between two moments | 5% | Siddhartha | 24 Nov | not started |
-| M7 | Final README with screenshots and results, self-evaluation with MariaDB's prompt, presentation | 5% | everyone | 1 Dec | not started |
+| M2 | The time machine page: pick an article and a moment, read it as it stood; revision timeline | 20% | Siddhartha | 17 Nov | first version merged 5 Nov (Siddhartha, pull request #2); completed 13 Nov (Adnan), awaiting review |
+| M3 | Growth, and partitioning by `SYSTEM_TIME`: measured | 20% | Rahmath | 17 Nov | built 13 Nov (Adnan), awaiting review |
+| M4 | The time model compared: replay, `insert_history` and bitemporal, measured | 15% | Adnan | 20 Nov | built 13 Nov, awaiting review |
+| M5 | Before and after: history by triggers and revision tables (the MySQL, PostgreSQL and MediaWiki way), and where system versioning stops being the right answer | 10% | Rahmath (triggers baseline), Adnan (limits) | 24 Nov | built 13 Nov (Adnan), awaiting review |
+| M6 | Diff between two moments | 5% | Siddhartha | 24 Nov | built 13 Nov (Adnan), awaiting review |
+| M7 | Final README with screenshots and results, self-evaluation with MariaDB's prompt, presentation | 5% | everyone | 1 Dec | README, screenshots and results written 13 Nov, verified on 10.11, 11.4 and 12.3 on 14 Nov; the first CI run on GitHub, the submissions to MariaDB and the presentation are open |
 
 Weekly targets: by the meeting of week 46 (from 9 Nov), everyone is set up and has a first pull request open. By week 47, M2 and M3 are reviewed and merged. Week 48 is for M4 to M6. Week 49 is for M7 and rehearsing.
+
+## Where we stand (14 November 2026)
+
+From 12 to 14 November, Adnan built M2 to M6 and the written part of M7 in one long session with Claude Code, ahead of the dates above and across the owners in the table; the session is recorded in [prompts/2026-11-12-adnan-finish-main-dish.md](prompts/2026-11-12-adnan-finish-main-dish.md). The owner column still says who the plan gave each milestone to. What that changes for the team:
+
+- **Every milestone built in that session needs a review by someone who did not build it** before it is merged, as [CONTRIBUTING.md](../CONTRIBUTING.md) asks. A review here means running it (`python scripts/setup.py --experiments`, `pytest app/tests`, the page itself) and being able to explain it, since each of us presents on 3 December.
+- **Open, in order:**
+  1. the first CI run on GitHub (its steps passed locally in Docker on MariaDB 10.11.19, 11.4.13 and 12.3.3 on 14 November);
+  2. the reviews;
+  3. submitting the three findings in [upstream/](../upstream/README.md) to MariaDB, and putting the links into that file and the README;
+  4. the presentation and its rehearsal.
+- Three things were built that this plan did not ask for, because they turned up while building what it did ask for: the wrong-result reproduction for MDEV-29674 (found by following the M3 recipe below exactly), the audit of MariaDB's agent skill, and the lab in the web page.
 
 ## M2: the time machine page (Siddhartha)
 
@@ -52,7 +64,7 @@ A small web app in Python (Flask and PyMySQL, listed in `app/requirements.txt`):
 Branch `rahmath/growth-partitioning`. Owns `experiments/growth/` and `docs/growth-and-partitioning.md`.
 
 - **Growth:** how big `article` is, current rows against history rows (`information_schema.TABLES`, and `information_schema.PARTITIONS` once partitioned); bytes of history per edit; how the history grew year by year (from `FOR SYSTEM_TIME ALL`).
-- **Partitioning:** a copy of `article` partitioned by `SYSTEM_TIME`, for example `PARTITION BY SYSTEM_TIME INTERVAL 1 YEAR STARTS '2002-01-01 00:00:00' AUTO`, loaded the same way as `sql/02_build_history.sql` does. Show the rows and bytes per partition; `EXPLAIN PARTITIONS` for a current-only query, an `AS OF` query and an `ALL` query; and the time of current-only queries with and without partitioning (at least 5 runs each, median, MariaDB version and machine stated).
+- **Partitioning:** a copy of `article` partitioned by `SYSTEM_TIME`, for example `PARTITION BY SYSTEM_TIME INTERVAL 1 YEAR STARTS '2002-01-01 00:00:00' AUTO`, loaded the same way as `sql/02_build_history.sql` does. *(13 November: built exactly like this, the table answers correctly until its first `UPDATE` and returns nothing afterwards. Add `PARTITIONS 26` so the partitions exist before the load; [the trap](growth-and-partitioning.md#the-trap-dated-history-and-partitions-that-do-not-exist-yet).)* Show the rows and bytes per partition; `EXPLAIN PARTITIONS` for a current-only query, an `AS OF` query and an `ALL` query; and the time of current-only queries with and without partitioning (at least 5 runs each, median, MariaDB version and machine stated).
 - **Removing old history:** `DELETE HISTORY ... BEFORE SYSTEM_TIME` against `ALTER TABLE ... DROP PARTITION`: time taken, what each leaves behind, the `DELETE HISTORY` privilege.
 - Optional: `content MEDIUMTEXT COMPRESSED` and its effect on size; a larger article set to make growth easier to see (agree on it with Adnan first, since `data/articles.txt` is shared).
 - Everything reproducible with one command, e.g. `python scripts/run_sql.py experiments/growth/run.sql`.

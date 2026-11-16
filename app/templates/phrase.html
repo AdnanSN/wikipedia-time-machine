@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}When did {{ title }} say it? - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<p class="crumb"><a href="{{ url_for('article', page_id=page_id) }}">{{ title }}</a></p>
+<h1>When did {{ title }} say it?</h1>
+
+<form class="ask wide" method="get" action="{{ url_for('phrase', page_id=page_id) }}">
+  <label for="q">A word or phrase, as it appears in the wikitext</label>
+  <input id="q" name="q" type="text" minlength="2" maxlength="200" value="{{ wanted }}" required>
+  <button type="submit">Find out</button>
+</form>
+
+{% if wanted | length >= 2 %}
+  <div class="statement">
+    <p>The history is rows, so a window function can walk it. For each version: does it contain the
+       phrase, and did the one before? The versions where the two answers differ are the edits that
+       put the phrase in or took it out.</p>
+    <pre><code>SELECT row_start, rev_id, editor, has_phrase
+FROM (SELECT row_start, rev_id, editor,
+             content LIKE '%...%' AS has_phrase,
+             LAG(content LIKE '%...%') OVER (ORDER BY row_start) AS had_phrase
+      FROM article FOR SYSTEM_TIME ALL
+      WHERE page_id = {{ page_id }}) AS version
+WHERE has_phrase <> COALESCE(had_phrase, 0);</code></pre>
+  </div>
+
+  {% if not periods %}
+  <p class="notice">No version of this article has ever contained &ldquo;{{ wanted }}&rdquo;.</p>
+  {% else %}
+  <p class="lead">&ldquo;{{ wanted }}&rdquo; was in the article during
+     {{ periods | length }} period{{ '' if periods | length == 1 else 's' }}{% if not periods[-1].removed %},
+     and is in it now{% endif %}. Upper and lower case are not told apart.</p>
+  <ol class="periods">
+    {% for period in periods %}
+    <li>
+      <p class="period-span">
+        <a href="{{ url_for('article', page_id=page_id, at=period.added.row_start | for_url) }}">{{ period.added.row_start | in_words }}</a>
+        {% if period.removed %}
+        to <a href="{{ url_for('article', page_id=page_id, at=period.removed.row_start | for_url) }}">{{ period.removed.row_start | in_words }}</a>:
+        {{ span_in_words(period.added.row_start, period.removed.row_start) }}
+        {% else %}
+        until now
+        {% endif %}
+      </p>
+      <p class="small">Put in by {{ period.added.editor or 'a hidden name' }}
+         (<a href="{{ url_for('diff', page_id=page_id, to=period.added.row_start | for_url) }}">see the edit</a>){% if period.added.summary %}:
+         &ldquo;{{ period.added.summary }}&rdquo;{% endif %}</p>
+      {% if period.removed %}
+      <p class="small">Taken out by {{ period.removed.editor or 'a hidden name' }}
+         (<a href="{{ url_for('diff', page_id=page_id, to=period.removed.row_start | for_url) }}">see the edit</a>){% if period.removed.summary %}:
+         &ldquo;{{ period.removed.summary }}&rdquo;{% endif %}</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+{% else %}
+<p class="lead">Try the name of a person, a product or a claim. The answer comes from every version the
+   article ever had, in one query.</p>
+{% endif %}
+{% endblock %}

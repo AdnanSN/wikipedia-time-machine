@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  load-and-check:
+  build-and-check:
     name: MariaDB ${{ matrix.mariadb }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -18,21 +18,40 @@ jobs:
         # 12.3:  the version we develop on
         mariadb: ['10.11', '11.4', '12.3']
 
+    env:
+      # For the web page's tests, which connect from the runner to the container below.
+      WTM_DB_HOST: 127.0.0.1
+      WTM_DB_PORT: 3306
+      WTM_DB_USER: root
+      WTM_DB_PASSWORD: ''
+      # A page test that cannot reach the database must fail, not be skipped.
+      WTM_REQUIRE_DB: '1'
+
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install what the web page and its tests need
+        run: pip install -r app/requirements.txt pytest
+
       - name: Check the revision files against data/pages.tsv and their SHA-1s
-        run: python3 scripts/fetch_revisions.py --check
+        run: python scripts/fetch_revisions.py --check
 
       - name: Generate the SQL for the revision table
-        run: python3 scripts/build_sql.py
+        run: python scripts/build_sql.py
 
-      # A throwaway server inside the job: no port is published, so an empty root password is fine.
+      # A throwaway server inside the job. Its port is published on the runner's loopback
+      # address only, so an empty root password is fine: nothing outside this job can reach
+      # it, and the job's machine is discarded afterwards.
       # The repository is mounted read-only at /repo so the client can `source` the scripts.
       - name: Start MariaDB ${{ matrix.mariadb }}
         run: |
           docker run --detach --name mariadb \
             --env MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1 \
+            --publish 127.0.0.1:3306:3306 \
             --volume "$GITHUB_WORKSPACE:/repo:ro" \
             mariadb:${{ matrix.mariadb }} --max-allowed-packet=64M
           for i in $(seq 1 60); do
@@ -51,7 +70,61 @@ jobs:
         run: |
           docker exec --workdir /repo mariadb \
             sh -c 'mariadb --user=root --table --abort-source-on-error < run_all.sql' | tee run_all.out
-          grep -E '^\| [0-9]+ / [0-9]+ checks passed' run_all.out
+
+      - name: Test the web page and its parts (pytest)
+        run: pytest app/tests -v
+
+      # The experiments, with one timed run per statement instead of seven: timings on a
+      # shared CI machine mean little, but every statement must run on this version and
+      # every check in the scripts must hold.
+      - name: Experiment - growth and partitioning
+        run: |
+          docker exec --workdir /repo mariadb \
+            sh -c 'mariadb --user=root --table --abort-source-on-error --init-command="SET @runs = 1" < experiments/growth/run.sql' | tee growth.out
+
+      - name: Experiment - the four time models
+        run: |
+          docker exec --workdir /repo mariadb \
+            sh -c 'mariadb --user=root --table --abort-source-on-error --init-command="SET @runs = 1" < experiments/time-models/run.sql' | tee time-models.out
+
+      - name: Experiment - before and after, and the limits
+        run: |
+          docker exec --workdir /repo mariadb \
+            sh -c 'mariadb --user=root --table --abort-source-on-error --init-command="SET @runs = 1" < experiments/before-after/run.sql' | tee before-after.out
+
+      - name: Audit of MariaDB's agent skill for system-versioned tables
+        run: |
+          docker exec --workdir /repo mariadb \
+            sh -c 'mariadb --user=root --table --abort-source-on-error < upstream/skill-audit/run.sql' | tee skill-audit.out
+
+      # Recorded, not judged: this script shows a server bug, so its output differs once
+      # the bug is fixed, and a fix may well turn the silent misplacement into an error.
+      # --force lets it run past any such error; the exit status is written into the
+      # output instead of failing the step.
+      - name: Record the wrong-result reproduction (MDEV-29674)
+        run: |
+          docker exec --workdir /repo mariadb \
+            sh -c 'mariadb --user=root --table --force < upstream/mdev-29674-wrong-results.sql 2>&1; echo "exit status: $?"' \
+            | tee mdev-29674.out
+
+      # The same steps as scripts/backup_check.py, with the tools inside the container.
+      - name: Back up with and without --dump-history, restore, compare
+        run: |
+          docker exec mariadb sh -c '
+            set -e
+            mariadb-dump --user=root --dump-history wiki_time_machine article lab_page > /tmp/with_history.sql
+            mariadb-dump --user=root wiki_time_machine article lab_page > /tmp/default.sql
+            mariadb --user=root -e "CREATE OR REPLACE DATABASE wtm_restored; CREATE OR REPLACE DATABASE wtm_restored_plain"
+            mariadb --user=root wtm_restored < /tmp/with_history.sql
+            mariadb --user=root wtm_restored_plain < /tmp/default.sql'
+          docker exec --workdir /repo mariadb \
+            sh -c 'mariadb --user=root --table --abort-source-on-error < experiments/backup/compare.sql' | tee backup.out
+
+      # A script that stopped early or printed fewer checks than it should must not pass.
+      - name: Every script reached its end and every check in it passed
+        run: |
+          python scripts/check_output.py run_all.out:12 growth.out:9 time-models.out:8 \
+            before-after.out:7 skill-audit.out:5 backup.out:4
 
       - name: Keep the output
         if: always()

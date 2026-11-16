@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}What changed in {{ pair.title }} - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<p class="crumb"><a href="{{ url_for('article', page_id=page_id) }}">{{ pair.title }}</a></p>
+<h1>What changed in {{ pair.title }}</h1>
+
+<div class="two-moments">
+  <div class="then">
+    <h2>From</h2>
+    <p><a href="{{ url_for('article', page_id=page_id, at=older | for_url) }}">{{ older | in_words }}</a></p>
+    <p class="small">Current then: the version saved {{ pair.old_saved | in_words(seconds=True) }}
+       by {{ pair.old_editor or 'a hidden name' }}, {{ '{:,}'.format(pair.old_len or 0) }} bytes.</p>
+  </div>
+  <div class="later">
+    <h2>To</h2>
+    <p><a href="{{ url_for('article', page_id=page_id, at=newer | for_url) }}">{{ newer | in_words }}</a></p>
+    <p class="small">Current then: the version saved {{ pair.new_saved | in_words(seconds=True) }}
+       by {{ pair.new_editor or 'a hidden name' }}, {{ '{:,}'.format(pair.new_len or 0) }} bytes.</p>
+  </div>
+</div>
+
+<div class="statement">
+  <p>Both texts come from one query. Each mention of the table carries its own moment:</p>
+  <pre><code>SELECT old.content, new.content
+FROM article FOR SYSTEM_TIME AS OF TIMESTAMP '{{ older | for_statement }}' AS old
+JOIN article FOR SYSTEM_TIME AS OF TIMESTAMP '{{ newer | for_statement }}' AS new USING (page_id)
+WHERE page_id = {{ page_id }};</code></pre>
+</div>
+
+{% if pair.old_rev == pair.new_rev %}
+<p class="notice">The same version was current at both moments, so nothing changed. It was saved
+   {{ pair.new_saved | in_words(seconds=True) }}.</p>
+{% elif changes.identical %}
+<p class="notice">The two texts are identical, although {{ between.saves }} save{{ '' if between.saves == 1 else 's' }}
+   happened in between: whatever was changed was changed back.</p>
+{% else %}
+<p class="lead">
+  <span class="grew">{{ '{:,}'.format(changes.lines_added) }} line{{ '' if changes.lines_added == 1 else 's' }} added</span>,
+  <span class="shrank">{{ '{:,}'.format(changes.lines_removed) }} removed</span>,
+  over {{ '{:,}'.format(between.saves) }} save{{ '' if between.saves == 1 else 's' }}
+  by {{ '{:,}'.format(between.editors) }} editor{{ '' if between.editors == 1 else 's' }}.
+  Words taken out are <del>struck through</del>; words put in are <ins>underlined</ins>.
+</p>
+
+<div class="diff">
+  {% for hunk in changes.hunks %}
+  <section class="hunk" aria-label="Change near line {{ hunk.line }}">
+    <p class="hunk-place">Line {{ '{:,}'.format(hunk.line) }}</p>
+    {% for kind, text in hunk.rows %}
+    <div class="row {{ kind }}">{{ text | safe }}</div>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

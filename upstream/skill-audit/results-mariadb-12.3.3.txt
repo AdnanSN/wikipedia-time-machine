@@ -1,0 +1,64 @@
++----------------+
+| mariadb        |
++----------------+
+| 12.3.3-MariaDB |
++----------------+
++---------------------+---------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------+
+| section             | the_skill                                                                                   | on_this_server                                                                                                                                                     | verdict          |
++---------------------+---------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------+
+| Creating            | example: CREATE TABLE employees ... WITH SYSTEM VERSIONING                                  | accepted                                                                                                                                                           | holds            |
+| Creating            | claim: "Every INSERT, UPDATE, and DELETE creates a history row."                            | history rows after 2 INSERTs: 0; after 1 UPDATE: 1; after 1 DELETE: 2                                                                                              | wrong            |
+| Creating            | example: ALTER TABLE ... ADD SYSTEM VERSIONING                                              | accepted                                                                                                                                                           | holds            |
+| Creating            | example: ALTER TABLE ... DROP SYSTEM VERSIONING                                             | accepted                                                                                                                                                           | holds            |
+| Querying            | example: FOR SYSTEM_TIME AS OF '2026-01-01 00:00:00'                                        | accepted                                                                                                                                                           | holds            |
+| Querying            | example: FOR SYSTEM_TIME BETWEEN '2025-01-01' AND '2026-01-01'                              | accepted                                                                                                                                                           | holds            |
+| Querying            | example: FOR SYSTEM_TIME FROM '2025-01-01' TO '2026-01-01'                                  | accepted                                                                                                                                                           | holds            |
+| Querying            | example: FOR SYSTEM_TIME ALL                                                                | accepted                                                                                                                                                           | holds            |
+| Querying            | example: SELECT *, ROW_START, ROW_END FROM employees FOR SYSTEM_TIME ALL WHERE id = ...     | accepted                                                                                                                                                           | holds            |
+| Querying            | (not in the skill) AS OF TIMESTAMP '2026-01-01', a date without a time                      | error 1525: Incorrect DATETIME value: '2026-01-01'                                                                                                                 | worth adding     |
+| Querying            | example: SET system_versioning_asof = ...; SELECT; SET ... = DEFAULT                        | accepted; rows seen as of 2026-01-01: 0, after the reset: 1                                                                                                        | holds            |
+| Transaction-precise | example: CREATE TABLE ledger (... BIGINT UNSIGNED ... AS ROW START ...)                     | accepted                                                                                                                                                           | holds            |
+| Transaction-precise | claim: not compatible with PARTITION BY SYSTEM_TIME                                         | error 4110: `trx_start` must be of type TIMESTAMP(6) for system-versioned table `ledger`                                                                           | holds            |
+| Column-level        | example: view_count INT WITHOUT SYSTEM VERSIONING ("not tracked")                           | accepted; history rows after updating only view_count: 0                                                                                                           | holds            |
+| Column-level        | example: CREATE TABLE config (key VARCHAR(50), value TEXT WITH SYSTEM VERSIONING)           | error 1064: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VARCHAR(50),  | fails as written |
+| Column-level        | our correction: the same with the column named setting_name                                 | accepted                                                                                                                                                           | holds            |
+| History growth      | example: PARTITION BY SYSTEM_TIME (PARTITION p_hist HISTORY, PARTITION p_cur CURRENT)       | accepted                                                                                                                                                           | holds            |
+| History growth      | example: PARTITION BY SYSTEM_TIME INTERVAL 1 MONTH AUTO (PARTITION p_cur CURRENT)           | error 4128: Wrong partitions for `prices`: must have at least one HISTORY and exactly one last CURRENT                                                             | fails as written |
+| History growth      | our correction: the same without the partition list                                         | accepted                                                                                                                                                           | holds            |
+| History growth      | example: DELETE HISTORY FROM employees BEFORE SYSTEM_TIME '2024-01-01'                      | accepted                                                                                                                                                           | holds            |
+| History growth      | example: ALTER TABLE employees DROP PARTITION p_hist                                        | error 1505: Partition management on a not partitioned table is not possible                                                                                        | fails as written |
+| History growth      | the same on the table that has p_hist (events): dropping its only history partition         | error 4128: Wrong partitions for `events`: must have at least one HISTORY and exactly one last CURRENT                                                             | fails as written |
+| History growth      | claim: deleting all history "requires DROP SYSTEM VERSIONING + re-add, or partition drop"   | DELETE HISTORY FROM events: accepted; history rows before: 1, after: 0                                                                                             | wrong            |
+| History growth      | claim: TRUNCATE is not allowed (error 4137)                                                 | error 4137: System-versioned tables do not support TRUNCATE TABLE                                                                                                  | holds            |
+| ALTER TABLE         | claim: by default ALTER TABLE on a versioned table raises an error                          | error 4119: Not allowed for system-versioned `wtm_skill_audit`.`employees`. Change @@system_versioning_alter_history to proceed with                               | holds            |
+| ALTER TABLE         | example: SET system_versioning_alter_history = KEEP; ALTER ... ADD COLUMN manager_id INT    | accepted; manager_id in the history rows: NULL                                                                                                                     | holds            |
+| ALTER TABLE         | (not in the skill) ADD COLUMN ... NOT NULL DEFAULT 7: what old versions show                | grade in the history rows: 7                                                                                                                                       | worth adding     |
+| ALTER TABLE         | claim: hidden period columns can be made explicit from 11.7 on                              | accepted                                                                                                                                                           | holds            |
+| Key gotchas         | claim: DELETE HISTORY with a future timestamp can delete active rows (MDEV-25468)           | BEFORE SYSTEM_TIME '2200-01-01': accepted; current rows left: 2 of 2, history rows left: 0                                                                         | out of date      |
+| Key gotchas         | claim: SYSTEM as a column name causes parser errors in ALTER TABLE (tried: ADD system INT)  | error 1064: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server versi                                                   | holds            |
+| Key gotchas         | claim: ... use backticks (tried: ADD `system` INT)                                          | accepted                                                                                                                                                           | holds            |
+| Key gotchas         | (not in the skill) the same with the COLUMN keyword and no backticks: ADD COLUMN system INT | accepted                                                                                                                                                           | worth adding     |
++---------------------+---------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------+
++------------------+-------+
+| verdict          | items |
++------------------+-------+
+| holds            |    22 |
+| fails as written |     4 |
+| worth adding     |     3 |
+| wrong            |     2 |
+| out of date      |     1 |
++------------------+-------+
++--------------------------------------------------------------------------------------------------+------+
+| test                                                                                             | pass |
++--------------------------------------------------------------------------------------------------+------+
+| an INSERT creates no history row                                                                 |    1 |
+| the config example fails with a syntax error (1064), and runs once the column is not called key  |    1 |
+| the AUTO example with only a CURRENT partition fails (4128), and runs without the partition list |    1 |
+| the only history partition cannot be dropped (4128), and DELETE HISTORY removes all history      |    1 |
+| DELETE HISTORY before a far-future time leaves the current rows alone                            |    1 |
++--------------------------------------------------------------------------------------------------+------+
++---------------------------------+
+| summary                         |
++---------------------------------+
+| 5 / 5 skill-audit checks passed |
++---------------------------------+

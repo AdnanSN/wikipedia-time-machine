@@ -25,13 +25,12 @@ Name the files you add, rather than `git add .`, so nothing unexpected (a passwo
 **3. Check before you push.** If you touched `data/`, `scripts/` or `sql/`, run the build and checks; it must end with `N / N checks passed`:
 
 ```bash
-python scripts/build_sql.py
-python scripts/run_sql.py
+python scripts/setup.py
 ```
 
-`run_sql.py` takes the database password from your `.env` file (see [START_HERE](docs/team/START_HERE.md#3-get-the-code-and-build-the-database)), so your agent can run it too. Without the helper: `mariadb -u root -p --table --abort-source-on-error -e "source run_all.sql"`.
+It runs `scripts/build_sql.py` and `scripts/run_sql.py`, which take the database password from your `.env` file (see [START_HERE](docs/team/START_HERE.md#3-get-the-code-and-build-the-database)), so your agent can run them too. Without the helpers: `mariadb -u root -p --table --abort-source-on-error -e "source run_all.sql"`.
 
-If you touched the app or an experiment, run that too and note what you saw.
+If you touched the app, run `pytest app/tests` and open the pages you changed. If you touched an experiment, run it (`python scripts/run_sql.py experiments/<name>/run.sql`); it must end with its own `N / N ... checks passed`, and any number you put into the docs must come from its output. CI runs all of it on MariaDB 10.11, 11.4 and 12.3.
 
 **4. Log your AI use** in `docs/AI_USE.md`, one line per use, and save the prompt in `docs/prompts/`. See the format at the top of [docs/AI_USE.md](docs/AI_USE.md). It goes in the same pull request as the code it produced.
 

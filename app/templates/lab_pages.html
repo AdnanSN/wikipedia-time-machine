@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Lab - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<h1>Lab: make some history</h1>
+<p class="lead">The articles elsewhere on this site are Wikipedia's past, and stay as they were. These few
+   live in a second table, <code>lab_page</code>, that you may change. Edit one, delete one, bring it
+   back, and look at what the server kept. No code in this application writes history; each button runs
+   one ordinary statement and shows it to you.</p>
+
+{% with messages = get_flashed_messages() %}{% for message in messages %}
+<div class="done">
+  <p>{{ message.what }}</p>
+  <pre><code>{{ message.sql }}</code></pre>
+</div>
+{% endfor %}{% endwith %}
+
+<table class="list">
+  <caption>Pages in the lab: {{ current | length }} now, {{ '{:,}'.format(versions) }} versions kept in all</caption>
+  <thead>
+    <tr><th scope="col">Page</th><th scope="col" class="num">Length</th><th scope="col">Last saved (UTC)</th><th scope="col">By</th></tr>
+  </thead>
+  <tbody>
+    {% for row in current %}
+    <tr>
+      <th scope="row"><a href="{{ url_for('lab.page', page_id=row.page_id) }}">{{ row.title }}</a></th>
+      <td class="num">{{ '{:,}'.format(row.characters) }} characters</td>
+      <td>{{ row.saved_at | in_words(seconds=True) }}</td>
+      <td>{{ row.editor }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if deleted %}
+<section class="not-yet">
+  <h2>Deleted, but not forgotten</h2>
+  <p>A <code>DELETE</code> ends a row's last version. The row is gone from the table; its history is not.</p>
+  <ul>
+    {% for row in deleted %}
+    <li><a href="{{ url_for('lab.page', page_id=row.page_id) }}">{{ row.title }}</a>,
+        deleted {{ row.deleted_at | in_words(seconds=True) }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<p class="small">To start over, rebuild the lab table: <code>python scripts/run_sql.py sql/04_lab.sql</code>.</p>
+{% endblock %}

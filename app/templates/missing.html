@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ first.title }} was not written yet - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<p class="crumb"><a href="{{ url_for('index', at=at_url) }}">Articles</a></p>
+<h1>{{ first.title }} had not been written yet</h1>
+<p class="lead">{% if asked %}On {{ asked | in_words }} there{% else %}There{% endif %} was no article with this
+   name. <code>FOR SYSTEM_TIME AS OF</code> returns no row for a moment before the first version, just as a
+   query would have returned none on that day.</p>
+<p>Its first version was saved on {{ first.first_saved | in_words(seconds=True) }}; there have been
+   {{ '{:,}'.format(first.versions) }} since.</p>
+<p><a class="button" href="{{ url_for('article', page_id=page_id, at=first.first_saved | for_url) }}">Read the first version</a>
+   <a class="quiet-button" href="{{ url_for('article', page_id=page_id) }}">Read it as it stands now</a></p>
+{% endblock %}

@@ -75,14 +75,10 @@ copy .env.example .env
 Open `.env` in a text editor (`notepad .env`) and put your MariaDB root password after `WTM_DB_PASSWORD=`. This file stays on your computer (Git ignores it), and it lets your agent run the database scripts without asking you for the password. Never paste the password into a chat with an agent. Then build the database:
 
 ```powershell
-python scripts/build_sql.py
+python scripts/setup.py
 ```
 
-```powershell
-python scripts/run_sql.py
-```
-
-It takes about half a minute and must end with `8 / 8 checks passed`. If it does not, send the last 20 lines of the output to the team chat.
+It runs `scripts/build_sql.py` and then `scripts/run_sql.py` (you can also run the two yourself), takes about half a minute, and must end with `12 / 12 checks passed`. If it does not, send the last 20 lines of the output to the team chat. To look at the web page too: `pip install -r app/requirements.txt`, then `python scripts/setup.py --app`.
 
 ## 4. Start your agent
 

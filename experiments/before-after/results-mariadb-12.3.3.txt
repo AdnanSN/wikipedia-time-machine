@@ -1,0 +1,110 @@
++----------------+-------+----------------+---------------------+--------------------------+
+| mariadb        | os    | buffer_pool_mb | flush_log_at_commit | timed_runs_per_statement |
++----------------+-------+----------------+---------------------+--------------------------+
+| 12.3.3-MariaDB | Win64 |            128 |                   1 | 7                        |
++----------------+-------+----------------+---------------------+--------------------------+
++------------------------------+--------+----------+----------------------------+--------------------------------------------------------+
+| way                          | tables | triggers | characters_of_trigger_code | kept_complete_by                                       |
++------------------------------+--------+----------+----------------------------+--------------------------------------------------------+
+| application (revision table) |      2 |        0 |                          0 | every statement that edits must also insert a revision |
+| triggers                     |      2 |        2 |                        691 | two triggers, rewritten whenever a column is added     |
+| system versioning            |      1 |        0 |                          0 | the server                                             |
++------------------------------+--------+----------+----------------------------+--------------------------------------------------------+
++-------------------------------+---------+----------+----------+
+| Table                         | Op      | Msg_type | Msg_text |
++-------------------------------+---------+----------+----------+
+| wtm_before_after.trig_article | analyze | status   | OK       |
+| wtm_before_after.trig_history | analyze | status   | OK       |
+| wtm_before_after.sv_article   | analyze | status   | OK       |
++-------------------------------+---------+----------+----------+
++---------------------------------------+------------+
+| way                                   | mb_on_disk |
++---------------------------------------+------------+
+| application: page + revision          |      231.0 |
+| triggers: trig_article + trig_history |      220.1 |
+| system versioning: sv_article         |      221.1 |
++---------------------------------------+------------+
++-------------+-----------+---------------------+
+| way         | rev_id    | saved_at            |
++-------------+-----------+---------------------+
+| application | 365034244 | 2010-05-30 15:09:42 |
++-------------+-----------+---------------------+
++----------+-----------+----------------------------+
+| way      | rev_id    | saved_at                   |
++----------+-----------+----------------------------+
+| triggers | 365034244 | 2010-05-30 15:09:42.000000 |
++----------+-----------+----------------------------+
++-------------------+-----------+----------------------------+
+| way               | rev_id    | saved_at                   |
++-------------------+-----------+----------------------------+
+| system versioning | 365034244 | 2010-05-30 15:09:42.000000 |
++-------------------+-----------+----------------------------+
++------------------------------------------------------+------+------------+-----------+------------+
+| label                                                | runs | fastest_ms | median_ms | slowest_ms |
++------------------------------------------------------+------+------------+-----------+------------+
+| application: one article with text as of 2010        |    7 |      0.059 |     0.080 |      0.623 |
+| triggers: one article with text as of 2010           |    7 |      5.538 |     9.018 |     14.812 |
+| system versioning: one article with text as of 2010  |    7 |      0.064 |     0.076 |      0.341 |
+| application: every article as of 2010, no text       |    7 |      5.004 |     5.240 |     94.697 |
+| triggers: every article as of 2010, no text          |    7 |      2.870 |     3.222 |      3.627 |
+| system versioning: every article as of 2010, no text |    7 |      3.324 |     3.674 |      6.506 |
++------------------------------------------------------+------+------------+-----------+------------+
++-------+----------------------------+
+| edits | avg_bytes_of_text_per_edit |
++-------+----------------------------+
+|   200 |                      56705 |
++-------+----------------------------+
++----------------------------------------------+------+------------+-----------+------------+
+| label                                        | runs | fastest_ms | median_ms | slowest_ms |
++----------------------------------------------+------+------------+-----------+------------+
+| no history kept: 200 edits                   |    5 |    167.960 |   188.328 |    241.334 |
+| application writes a revision row: 200 edits |    5 |    138.045 |   157.569 |    240.425 |
+| triggers copy the old row: 200 edits         |    5 |    189.135 |   240.738 |    331.675 |
+| system versioning: 200 edits                 |    5 |    189.979 |   212.327 |    291.964 |
++----------------------------------------------+------+------------+-----------+------------+
++---------------------------------------------------------------------------+------------------------------------------------------------------------------+
+| what                                                                      | observed                                                                     |
++---------------------------------------------------------------------------+------------------------------------------------------------------------------+
+| cascading delete of 2 notes: recorded by the trigger / kept by the server | 0 / 2                                                                        |
+| TRUNCATE on the trigger table: rows left / rows recorded                  | accepted: 0 / 0                                                              |
+| TRUNCATE on the versioned table                                           | error 4137: System-versioned tables do not support TRUNCATE TABLE            |
+| rewriting a row of the trigger history                                    | accepted: it now reads "it never said that"                                  |
+| the same UPDATE aimed at a history row of the versioned table             | accepted, rows changed: 0; the history still reads "original"                |
+| UPDATE ... FOR SYSTEM_TIME ALL on the versioned table                     | error 1099: Table 'note_sv' was locked with a READ lock and can't be updated |
+| DELETE HISTORY ... WHERE (one row's history)                              | error 1064: You have an error in your SQL syntax; check the manual that      |
+| an edit after DROP TRIGGER: new history rows                              | 0                                                                            |
++---------------------------------------------------------------------------+------------------------------------------------------------------------------+
++--------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+| what                                                                                                   | observed                                                                           |
++--------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
+| redaction in ONE statement: is the old text still in the history?                                      | yes, FOR SYSTEM_TIME ALL still returns it                                          |
+| redaction in TWO statements, text first: is the old text still in the history?                         | no; and the history still shows when the flag was set                              |
+| who changed it: versions that carry an account name                                                    | 2 of 2                                                                             |
+| ordinary account: CREATE TABLE                                                                         | error 1142: CREATE command denied to user 'wtm_ordinary'@'localhost' for           |
+| ordinary account: INSERT a history row dated 2001                                                      | accepted                                                                           |
+| ordinary account: UPDATE with its clock set back to 2016                                               | accepted                                                                           |
+| ordinary account: DELETE HISTORY                                                                       | error 1142: DELETE HISTORY command denied to user 'wtm_ordinary'@'localh           |
+| the table's history afterwards                                                                         | 2001: a version that never existed | 2016: what someone wants on record            |
+| ALTER TABLE on a versioned table, default settings                                                     | error 4119: Not allowed for system-versioned `wtm_before_after`.`shape`. Change @@ |
+| after ALTER ... KEEP: the licence the oldest version claims to have had                                | CC BY-SA 4.0                                                                       |
+| a word only the old version has: found by LIKE / found by MATCH                                        | 1 / 0                                                                              |
+| articles as of 2005: as a SELECT / inside SET @v = (SELECT ...) / copied by CREATE TABLE ... AS SELECT | 14 / 30 / 30                                                                       |
+| a history row that starts in 1969                                                                      | error 1292: Incorrect datetime value: '1969-08-19 00:00:00' for column `wtm_before |
+| the end of time for a current row on this server                                                       | 2106-02-07 06:28:15.999999                                                         |
++--------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------+
++-------------------------------------------------------------------------------------------------+------+
+| test                                                                                            | pass |
++-------------------------------------------------------------------------------------------------+------+
+| the trigger tables and the versioned table give the same answer for every article at 27 moments |    1 |
+| every timed edit left one more version, in the versioned table and in the trigger history       |    1 |
+| a cascading delete is missed by the trigger and kept by the versioned table                     |    1 |
+| a system-versioned table refuses TRUNCATE (error 4137)                                          |    1 |
+| redacting in two statements, text first, leaves no copy of the text in the history              |    1 |
+| a trigger on a versioned table records who changed each version                                 |    1 |
+| the ordinary account is refused DELETE HISTORY (and CREATE TABLE, so it really is ordinary)     |    1 |
++-------------------------------------------------------------------------------------------------+------+
++--------------------------------------+
+| summary                              |
++--------------------------------------+
+| 7 / 7 before-and-after checks passed |
++--------------------------------------+

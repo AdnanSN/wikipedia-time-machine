@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}How it works - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<h1>How it works</h1>
+<p class="lead">Wikipedia runs on MariaDB, and keeps its history in a <code>revision</code> table that its own
+   software fills on every edit. This page keeps the same history without any such software. The
+   table below is the whole mechanism.</p>
+
+<div class="statement">
+  <p>The definition of <code>article</code>, as this server ({{ server.version }}) describes it right now:</p>
+  <pre><code>{{ definition }}</code></pre>
+</div>
+
+<div class="columns">
+  <section>
+    <h2>What the last line does</h2>
+    <p><code>WITH SYSTEM VERSIONING</code> makes the server keep every earlier version of every row.
+       The table holds {{ '{:,}'.format(counts.current_rows) }} current rows, one per article, and
+       {{ '{:,}'.format(counts.all_rows - counts.current_rows) }} history rows, from
+       {{ counts.oldest | day }} to {{ counts.newest | day }}.</p>
+    <p><code>row_start</code> and <code>row_end</code> say when a version was the current one. Notice that
+       the server has added <code>row_end</code> to the primary key, which is how many versions of
+       one article share a <code>page_id</code>.</p>
+  </section>
+  <section>
+    <h2>What a query adds</h2>
+    <ul>
+      <li>Nothing: the current rows.</li>
+      <li><code>FOR SYSTEM_TIME AS OF t</code>: the rows as they stood at <var>t</var>.</li>
+      <li><code>FOR SYSTEM_TIME BETWEEN a AND b</code>: every version current at some point in the range.</li>
+      <li><code>FOR SYSTEM_TIME ALL</code>: every version there ever was.</li>
+      <li><code>SET system_versioning_asof = t</code>: <code>AS OF t</code> for every query of the session.</li>
+    </ul>
+  </section>
+</div>
+
+<h2>Where each one is used here</h2>
+<ul>
+  <li><a href="{{ url_for('index') }}">Articles</a>: the whole list travels with one <code>SET</code>.</li>
+  <li>An article: one <code>AS OF</code>. The picture above the text is <code>FOR SYSTEM_TIME ALL</code>.</li>
+  <li>What changed: two <code>AS OF</code> moments in one query.</li>
+  <li>When did it say that: a window function over <code>FOR SYSTEM_TIME ALL</code>.</li>
+  <li><a href="{{ url_for('lab.pages') }}">Lab</a>: edit a page and watch the server write the history.</li>
+</ul>
+<p>Every page prints the SQL it ran, at its foot. The dates are Wikipedia's own save times; how they got
+   into a column that the server normally fills from its clock is the main design decision of the project,
+   explained in the <a href="https://github.com/AdnanSN/wikipedia-time-machine#how-the-history-gets-its-real-dates">write-up</a>.</p>
+{% endblock %}

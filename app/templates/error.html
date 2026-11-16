@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} - Wikipedia time machine{% endblock %}
+
+{% block main %}
+<h1>{{ heading }}</h1>
+<p class="lead">{{ message }}</p>
+{% if steps %}
+<ol class="steps">
+  {% for step in steps %}<li>{{ step }}</li>{% endfor %}
+</ol>
+{% endif %}
+<p><a class="button" href="{{ url_for('index') }}">Go to the articles</a></p>
+{% endblock %}
